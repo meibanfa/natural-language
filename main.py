@@ -72,21 +72,20 @@ all_tokens = []
 for tokens in codes:
     all_tokens.extend(tokens)
 
-def build_dataset(all_tokens, input_list):
-  dictionary = dict()
-  for token in all_tokens:
-      dictionary[token] = len(dictionary)
+dictionary = dict()
+for token in all_tokens:
+    dictionary[token] = len(dictionary)
 
-  data_list = []
-  for i in range(np.shape(input_list)[0]):
-      data = []
-      for token in input_list[i]:
-          index = dictionary[token]
-          data.append(index)
-      data_list.append(data)
-  return data_list, dictionary
+data_list = []
+for i in range(np.shape(input_code)[0]):
+    data = []
+    for token in input_code[i]:
+         index = dictionary[token]
+         data.append(index)
+    data_list.append(data)
 
-input_code, dictionary = build_dataset(all_tokens, input_code)
+input_code = data_list
+
 
 
 
@@ -100,9 +99,6 @@ train_inputs2 = tf.placeholder(tf.int32, shape=(WINDOW,))  # code
 train_labels = tf.placeholder(tf.float32, shape=(embedding_size,))
 
 embeddings = tf.Variable(tf.random_uniform([tokens_size, embedding_size], -1.0, 1.0)) # code
-embed = tf.nn.embedding_lookup(embeddings, train_inputs2)
-
-
 
 # get H matrix variable
 h_temp = np.zeros([100, 100])
@@ -114,18 +110,11 @@ for i in range(10):
     h = tf.Variable(h_temp)
     H.append(h)
 
-x_code = []
-for code in input_code:
-    vector = np.zeros(embedding_size)
-    for i in range(WINDOW):
-        c = code[i]
-        if c in token_embeddings.keys():
-            v = np.dot(H[i], token_embeddings[c])
-            print(v)
-            vector += v
-    vector = np.ndarray.tolist(vector)
-    x_code.append(vector)
+code_vector = np.zeros([1, embedding_size])
+for i in range(WINDOW):
+    code_vector += np.dot(H[i], tf.nn.embedding_lookup(embeddings, train_inputs2[i]))
 
+input = code_vector * train_inputs1
 
 # get input data
 x_text = []
@@ -140,12 +129,10 @@ for text in input_text:
     vector = np.ndarray.tolist(vector)
     x_text.append(vector)
 
-x_data = x_text * x_code
-
 # get output data
 y_data = []
 for lab in label:
-    y_data.append(token_embeddings[lab])
+    y_data.append(tf.nn.embedding_lookup(embeddings, dictionary[lab]))
 
 
 nce_weights = tf.Variable(
@@ -157,7 +144,7 @@ loss = tf.reduce_mean(
       tf.nn.nce_loss(weights=nce_weights,
                      biases=nce_biases,
                      labels=train_labels,
-                     inputs=train_inputs,
+                     inputs=input,
                      num_sampled=num_sampled,
                      num_classes=number))
 
@@ -175,4 +162,4 @@ print('Initialized')
 
 average_loss = 0
 for step in range(num_steps):
-    feed_dict = {train_inputs: x_data, train_labels: y_data}
+    feed_dict = {train_inputs1:x_text, train_inputs2: input_code , train_labels: y_data}
